@@ -99,6 +99,12 @@ def banking_holidays(zone: str = Query(..., examples=["CH"]), year: Optional[int
     return _run(e.banking_holidays, zone, year)
 
 
+# ---------------------------------------------------------------- A18 Paket
+@app.get("/v1/briefing", summary="Trading briefing: all scheduled market events for the next days in one call")
+def briefing(date: Optional[str] = Query(None, examples=["2026-10-19"]), days: int = Query(7, ge=1, le=31)):
+    return _run(e.briefing, date, days)
+
+
 # ---------------------------------------------------------------- frei
 @app.get("/v1/sources", summary="Data source status (free)")
 def sources(check: bool = False):

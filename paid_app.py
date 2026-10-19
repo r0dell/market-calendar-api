@@ -9,7 +9,7 @@ Umgebungsvariablen:
 
 Start:  uvicorn paid_app:app --host 0.0.0.0 --port 8000
 Gratis:  /v1/indicators, /v1/sources, /health, /docs
-Bezahlt: opex, opex-calendar, vix-expiry, next-release, releases, next-meeting, meetings,
+Bezahlt: briefing, opex, opex-calendar, vix-expiry, next-release, releases, next-meeting, meetings,
          rebalance, auctions, next-auction, is-banking-day, banking-holidays
 """
 import os
@@ -93,10 +93,21 @@ S = lambda d: {"type": "string", "description": d}
 DATE = S("Date YYYY-MM-DD. Default: today.")
 YEAR = S("Year, e.g. 2027")
 
-# Preise je Agent (eindeutig, damit der Monitor zuordnen kann):
-# A3 0.0010, A4 0.0011, A5 0.0012, A14 0.0013, A15 0.0014, A13 0.0020 USDC
-A3, A4, A5, A14, A15, A13 = "$0.001", "$0.0011", "$0.0012", "$0.0013", "$0.0014", "$0.002"
+# Preise je Agent (eindeutig, damit der Monitor zuordnen kann), seit 19.10.2026 x10:
+# A3 0.010, A4 0.011, A5 0.012, A14 0.013, A15 0.014, A13 0.020, A18 Briefing 0.030 USDC
+A3, A4, A5, A14, A15, A13, A18 = "$0.01", "$0.011", "$0.012", "$0.013", "$0.014", "$0.02", "$0.03"
 routes = {
+    "GET /v1/briefing": route(
+        A18, "Trading briefing in one call: every scheduled market-moving event for the next 1-31 days, sorted by "
+             "date with UTC times and importance - US economic releases (CPI, NFP, PPI, GDP, PCE), Fed and ECB "
+             "rate decisions, options expirations (US monthly, triple witching, VIX, Eurex), index rebalancing, "
+             "US Treasury coupon auctions and banking holidays (US, TARGET2, Switzerland).",
+        ["finance", "trading", "calendar", "briefing", "macro", "economics"], {"days": "7"},
+        {"date": DATE, "days": S("Number of days from date, 1-31. Default 7.")}, [],
+        {"from": "2026-10-19", "to": "2026-10-25", "event_count": 3,
+         "summary": "3 events, 1 high importance; next: Fed rate decision on 2026-10-28",
+         "high_importance": [{"date": "2026-10-28", "type": "central_bank", "title": "Fed rate decision",
+                              "time_utc": "2026-10-28T18:00:00Z"}]}),
     "GET /v1/opex": route(
         A3, "Tells whether a date is a US monthly options expiration, triple witching, weekly expiration, VIX "
             "expiration or Eurex expiration (holiday-adjusted), and returns the next ones.",

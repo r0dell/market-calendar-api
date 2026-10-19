@@ -541,3 +541,71 @@ def next_auction(term: str | None = None) -> dict:
 
 def status() -> dict:
     return STATUS
+
+
+# ================================================================== A18 Briefing (Paket)
+def briefing(date: str | None = None, days: int = 7) -> dict:
+    """Alles Termin-Relevante für einen Zeitraum in einem Aufruf, nach Datum sortiert."""
+    start = _date(date, _today())
+    days = int(days)
+    if not 1 <= days <= 31:
+        raise ValueError("days must be between 1 and 31")
+    end = start + dt.timedelta(days=days - 1)
+    inside = lambda s: s and start <= dt.date.fromisoformat(s[:10]) <= end
+    ev: list[dict] = []
+
+    def add(d, kind, title, importance, **extra):
+        ev.append({"date": d[:10], "type": kind, "title": title, "importance": importance, **extra})
+
+    for r in releases(_iso(start), _iso(end))["releases"]:
+        imp = "high" if r["indicator"] in ("CPI", "NFP") else "medium"
+        add(r["date"], "economic_release", f"US {r['indicator']} ({r['reference_period']})", imp,
+            time_utc=r["time"]["utc"], time_et=r["time"]["et"])
+    for y in sorted({start.year, end.year}):
+        for m in meetings("all", y)["meetings"]:
+            if inside(m["decision_date"]):
+                add(m["decision_date"], "central_bank", f"{m['bank']} rate decision", "high",
+                    time_utc=m["statement"]["utc"],
+                    press_conference_utc=(m.get("press_conference") or {}).get("utc"),
+                    projections=m.get("projections"))
+        oc = opex_calendar(y)
+        for o in oc["us_monthly"]:
+            if inside(o["date"]):
+                tw = o.get("quarterly_triple_witching")
+                add(o["date"], "expiration", "US triple witching" if tw else "US monthly options expiration",
+                    "high" if tw else "medium")
+        for o in oc["vix"]:
+            if inside(o["date"]):
+                add(o["date"], "expiration", f"VIX expiration ({o['contract_month']})", "medium")
+        for o in oc["eurex_monthly"]:
+            if inside(o["date"]):
+                add(o["date"], "expiration", "Eurex expiration" + (" (quarterly)" if o.get("quarterly") else ""),
+                    "medium")
+        for idx, v in rebalance("ALL", y)["indexes"].items():
+            for r in v["dates"]:
+                for k in ("effective_after_close", "rank_day", "preliminary_lists"):
+                    if inside(r.get(k)):
+                        add(r[k], "index_rebalance", f"{idx} {r['type']}: {k.replace('_', ' ')}", "medium")
+        for zone in ("US", "TARGET2", "CH"):
+            for h in banking_holidays(zone, y)["holidays_on_weekdays"]:
+                if inside(h["date"]):
+                    add(h["date"], "banking_holiday", f"{zone} banking holiday: {h['name']}", "low", zone=zone)
+    notes = []
+    try:
+        for a in auctions(_iso(start), _iso(end))["auctions"]:
+            term = a.get("security_term", "")
+            if inside(a.get("auction_date")) and ("Year" in term):
+                add(a["auction_date"], "treasury_auction", f"US {term} {a.get('security_type', '')} auction".strip(),
+                    "medium")
+    except SourceUnavailable:
+        notes.append("Treasury auctions temporarily unavailable; other sections are complete.")
+    ev.sort(key=lambda x: (x["date"], x.get("time_utc") or "99", x["type"]))
+    by_day: dict[str, list] = {}
+    for x in ev:
+        by_day.setdefault(x["date"], []).append(x)
+    high = [x for x in ev if x["importance"] == "high"]
+    return {"from": _iso(start), "to": _iso(end), "days": days, "event_count": len(ev),
+            "high_importance": high, "by_day": by_day, "notes": notes,
+            "summary": (f"{len(ev)} events from {_iso(start)} to {_iso(end)}, {len(high)} high importance"
+                        + (f"; next: {high[0]['title']} on {high[0]['date']}" if high else "")),
+            "sources": "Official BLS/BEA, Fed, ECB calendars; Cboe/CME/Eurex rules; Treasury Fiscal Data API"}

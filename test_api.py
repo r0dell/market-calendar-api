@@ -104,3 +104,15 @@ def test_auctions():
     assert r["auctions"][0]["results"]["high_yield"] == 3.612
     assert get("/v1/next-auction", term="7-year")["next"]["cusip"] == "91282CRV5"
     assert get("/v1/sources", check="true")["latest"]["treasury_next_auction"] == "2026-10-27"
+
+
+def test_briefing(monkeypatch):
+    import engine
+    monkeypatch.setattr(engine, "auctions", lambda *a, **k: (_ for _ in ()).throw(engine.SourceUnavailable("x")))
+    r = c.get("/v1/briefing", params={"date": "2026-10-26", "days": 7})
+    assert r.status_code == 200
+    j = r.json()
+    titles = [x["title"] for x in j["high_importance"]]
+    assert "Fed rate decision" in titles and "ECB rate decision" in titles
+    assert j["notes"]
+    assert c.get("/v1/briefing", params={"days": 99}).status_code == 422
