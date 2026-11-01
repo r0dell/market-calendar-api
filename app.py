@@ -4,14 +4,17 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
 
+import cutoffs
 import engine as e
+import world
 
 app = FastAPI(
     title="Market Calendar API",
     version="0.1.0",
     description=("Trading-relevant calendars for agents: options expirations (US monthly, triple witching, VIX, "
                  "Eurex), US economic releases (CPI, NFP, PPI, GDP, PCE) with times, Fed and ECB meetings, index "
-                 "rebalancing dates, US Treasury auctions and banking holidays (TARGET2, US Fedwire, Switzerland)."),
+                 "rebalancing dates, US Treasury auctions, banking holidays (TARGET2, US Fedwire, Switzerland), "
+                 "public holidays worldwide with workday counting, and payment-system cut-off times."),
 )
 
 
@@ -103,6 +106,30 @@ def banking_holidays(zone: str = Query(..., examples=["CH"]), year: Optional[int
 @app.get("/v1/briefing", summary="Trading briefing: all scheduled market events for the next days in one call")
 def briefing(date: Optional[str] = Query(None, examples=["2026-10-19"]), days: int = Query(7, ge=1, le=31)):
     return _run(e.briefing, date, days)
+
+
+# ---------------------------------------------------------------- A34 Feiertage weltweit
+@app.get("/v1/public-holidays", summary="A34: Statutory public holidays of a country/region for a year")
+def public_holidays(country: str = Query(..., examples=["CH"]), year: Optional[int] = None,
+                    subdiv: Optional[str] = Query(None, examples=["ZH"])):
+    return _run(world.public_holidays, country, year, subdiv)
+
+
+@app.get("/v1/workdays", summary="A34: Count workdays between two dates, or add N workdays to a date")
+def workdays(country: str = Query(..., examples=["DE"]), start: Optional[str] = None, end: Optional[str] = None,
+             add: Optional[int] = None, subdiv: Optional[str] = None, weekend: str = "sat,sun"):
+    if add is not None:
+        return _run(world.add_workdays, country, start, add, subdiv)
+    return _run(world.workdays, country, start, end, subdiv, weekend)
+
+
+# ---------------------------------------------------------------- A35 Zahlungs-Cut-offs
+@app.get("/v1/payment-cutoff", summary="A35: Cut-off times of a payment system (Fedwire, ACH, T2, SIC, CHAPS...)")
+def payment_cutoff(system: str = Query("all", examples=["FEDWIRE"]), date: Optional[str] = None,
+                   at: Optional[str] = None):
+    if system.lower() == "all":
+        return _run(cutoffs.cutoff_all, date, at)
+    return _run(cutoffs.cutoff, system, date, at)
 
 
 # ---------------------------------------------------------------- frei

@@ -10,7 +10,8 @@ Umgebungsvariablen:
 Start:  uvicorn paid_app:app --host 0.0.0.0 --port 8000
 Gratis:  /v1/indicators, /v1/sources, /health, /docs
 Bezahlt: briefing, opex, opex-calendar, vix-expiry, next-release, releases, next-meeting, meetings,
-         rebalance, auctions, next-auction, is-banking-day, banking-holidays
+         rebalance, auctions, next-auction, is-banking-day, banking-holidays,
+         A34 public-holidays, workdays · A35 payment-cutoff
 """
 import os
 import re
@@ -96,6 +97,7 @@ YEAR = S("Year, e.g. 2027")
 # Preise je Agent (eindeutig, damit der Monitor zuordnen kann), seit 19.10.2026 x10:
 # A3 0.010, A4 0.011, A5 0.012, A14 0.013, A15 0.014, A13 0.020, A18 Briefing 0.030 USDC
 A3, A4, A5, A14, A15, A13, A18 = "$0.0205", "$0.0225", "$0.0245", "$0.0265", "$0.0285", "$0.0405", "$0.0455"
+A34, A35 = "$0.0305", "$0.0345"  # neu 1.11.2026
 routes = {
     "GET /v1/briefing": route(
         A18, "Trading briefing in one call: every scheduled market-moving event for the next 1-31 days, sorted by "
@@ -179,6 +181,37 @@ routes = {
         ["finance", "payments", "holidays", "calendar"], {"zone": "CH", "year": "2027"},
         {"zone": S("TARGET2, US or CH"), "year": YEAR}, ["zone"],
         {"zone": "CH", "holidays_on_weekdays": [{"date": "2027-05-06", "name": "Ascension Day"}]}),
+    "GET /v1/public-holidays": route(
+        A34, "Statutory public holidays for 150+ countries and their states/regions (e.g. CH-ZH, DE-BY, US-CA) for "
+             "a year, with weekday, count on weekdays and the next holiday. For scheduling, HR, logistics and "
+             "delivery-date agents.",
+        ["calendar", "holidays", "scheduling", "hr", "logistics", "global"], {"country": "CH", "subdiv": "ZH"},
+        {"country": S("ISO alpha-2 country code, e.g. CH, DE, US, JP"), "year": YEAR,
+         "subdiv": S("Optional state/region code, e.g. ZH, BY, CA")}, ["country"],
+        {"country": "CH", "subdivision": "ZH", "year": 2027, "count": 9,
+         "holidays": [{"date": "2027-03-26", "weekday": "Friday", "name": "Good Friday"}],
+         "next_holiday": {"date": "2026-12-25", "name": "Christmas Day"}}),
+    "GET /v1/workdays": route(
+        A34, "Counts workdays between two dates (inclusive) for a country/region, excluding weekends and public "
+             "holidays, or adds/subtracts N workdays to get a due date (param add). Custom weekends supported.",
+        ["calendar", "workdays", "business-days", "deadlines", "scheduling"],
+        {"country": "DE", "start": "2026-12-01", "end": "2026-12-31"},
+        {"country": S("ISO alpha-2 country code"), "start": DATE, "end": DATE,
+         "add": S("Instead of end: number of workdays to add (negative = back)"),
+         "subdiv": S("Optional region code"), "weekend": S("Weekend days, default sat,sun")}, ["country"],
+        {"country": "DE", "start": "2026-12-01", "end": "2026-12-31", "workdays": 22,
+         "holidays_on_workdays": [{"date": "2026-12-25", "name": "Christmas Day"}]}),
+    "GET /v1/payment-cutoff": route(
+        A35, "Cut-off times of the major payment systems for a date: Fedwire, FedACH same-day windows, T2/TARGET "
+             "(EUR), SIC (CHF), CHAPS (GBP), plus 24/7 instant systems. Says if it is an operating day, minutes "
+             "left until each cut-off, UTC times and the value date a payment sent now would get.",
+        ["payments", "treasury", "cut-off", "banking", "settlement", "finance"], {"system": "FEDWIRE"},
+        {"system": S("FEDWIRE, FEDACH, T2, SIC, CHAPS, SEPA_INST, FEDNOW or all"), "date": DATE,
+         "at": S("Reference time (ISO with offset), default now")}, [],
+        {"system": "FEDWIRE", "date": "2026-11-02", "is_operating_day": True,
+         "cutoffs": [{"type": "customer_transfers", "local_time": "18:45", "utc": "2026-11-02T23:45:00+00:00",
+                      "minutes_left": 105, "passed": False}],
+         "next_value_date_for_customer_payments": "2026-11-02"}),
 }
 
 app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)

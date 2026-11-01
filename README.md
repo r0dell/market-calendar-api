@@ -17,11 +17,15 @@ Trading-relevant calendars for AI agents, paid per call via x402 (USDC on Base).
 | `/v1/is-banking-day?zone=TARGET2` | Banking/settlement day for TARGET2, US (Fedwire) or CH | 0.0285 USDC |
 | `/v1/banking-holidays?zone=&year=` | Banking holidays of a year | 0.0285 USDC |
 | `/v1/rebalance?index=&year=` | S&P 500, Nasdaq-100, Russell (semi-annual), DAX rebalancing dates | 0.0405 USDC |
+| `/v1/public-holidays?country=CH&subdiv=ZH&year=` | Statutory public holidays of 150+ countries and their regions | 0.0305 USDC |
+| `/v1/workdays?country=DE&start=&end=` or `&add=10` | Workdays between dates / due date after N workdays | 0.0305 USDC |
+| `/v1/payment-cutoff?system=FEDWIRE` | Cut-off times of Fedwire, FedACH, T2, SIC, CHAPS (+ instant systems), minutes left, value date | 0.0345 USDC |
 | `/v1/indicators`, `/v1/sources`, `/docs` | Indicator list, source status, docs | free |
 
 Sources: Federal Reserve and ECB meeting calendars, BLS and BEA release schedules, FTSE Russell
 announcements, U.S. Treasury Fiscal Data API (public domain), exchange holiday calendars
-(`exchange_calendars`), published contract and index rules. Published schedules can change; every
+(`exchange_calendars`), published contract and index rules, the open-source `holidays` library (MIT) and the published
+operating hours of the payment systems (Fed, ECB, SNB/SIX, Bank of England). Published schedules can change; every
 response carries its source and verification date. Index names are trademarks of their owners; only
 dates are provided. Not investment advice.
 
