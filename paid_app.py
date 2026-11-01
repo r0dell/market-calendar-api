@@ -95,7 +95,7 @@ YEAR = S("Year, e.g. 2027")
 
 # Preise je Agent (eindeutig, damit der Monitor zuordnen kann), seit 19.10.2026 x10:
 # A3 0.010, A4 0.011, A5 0.012, A14 0.013, A15 0.014, A13 0.020, A18 Briefing 0.030 USDC
-A3, A4, A5, A14, A15, A13, A18 = "$0.01", "$0.011", "$0.012", "$0.013", "$0.014", "$0.02", "$0.03"
+A3, A4, A5, A14, A15, A13, A18 = "$0.0205", "$0.0225", "$0.0245", "$0.0265", "$0.0285", "$0.0405", "$0.0455"
 routes = {
     "GET /v1/briefing": route(
         A18, "Trading briefing in one call: every scheduled market-moving event for the next 1-31 days, sorted by "
